@@ -13,7 +13,7 @@ function TreeLine({ fill, height, count, seed }: { fill: string; height: number;
       Array.from({ length: count }, (_, i) => {
         const x = (i / count) * 100 + ((seed * (i + 3)) % 7) - 3;
         const h = height * (0.7 + (((seed + i * 13) % 10) / 10) * 0.6);
-        return { x, h, w: 4 + ((seed + i * 7) % 4) };
+        return { x, h, w: 1.6 + ((seed + i * 7) % 4) * 0.35 };
       }),
     [count, height, seed],
   );
@@ -27,16 +27,16 @@ function TreeLine({ fill, height, count, seed }: { fill: string; height: number;
             <div
               key={row}
               style={{
-                width: `${t.w * (row + 1) * 0.6}vh`,
-                height: `${t.h * 0.16}vh`,
+                width: `${t.w * (row + 1) * 0.42}vh`,
+                height: `${t.h * 0.15}vh`,
                 background: fill,
-                marginLeft: `-${t.w * (row + 1) * 0.3}vh`,
+                marginLeft: `-${t.w * (row + 1) * 0.21}vh`,
               }}
             />
           ))}
           <div
             style={{
-              width: `${t.w * 0.35}vh`,
+              width: `${Math.max(0.6, t.w * 0.35)}vh`,
               height: `${t.h * 0.4}vh`,
               background: "var(--bark)",
               marginLeft: `-${t.w * 0.175}vh`,
@@ -112,14 +112,14 @@ export function ForestBackground() {
       />
 
       {/* parallax tree layers */}
-      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yFar, opacity: 0.55 }}>
-        <TreeLine fill="var(--tree-far)" height={42} count={16} seed={3} />
+      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yFar, opacity: 0.35 }}>
+        <TreeLine fill="var(--tree-far)" height={24} count={22} seed={3} />
       </motion.div>
-      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yMid, opacity: 0.75 }}>
-        <TreeLine fill="var(--tree-mid)" height={32} count={11} seed={7} />
+      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yMid, opacity: 0.5 }}>
+        <TreeLine fill="var(--tree-mid)" height={18} count={15} seed={7} />
       </motion.div>
-      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yNear }}>
-        <TreeLine fill="var(--tree-near)" height={22} count={8} seed={11} />
+      <motion.div className="absolute inset-0" style={{ y: reduce ? 0 : yNear, opacity: 0.65 }}>
+        <TreeLine fill="var(--tree-near)" height={13} count={10} seed={11} />
       </motion.div>
 
       {/* ground band */}
