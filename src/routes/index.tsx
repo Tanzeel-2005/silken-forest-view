@@ -91,7 +91,7 @@ function Index() {
               transition={{ duration: 0.7, ease: "easeOut" }}
             >
               <span className="pixel inline-block rounded-md border border-border bg-secondary/70 px-3 py-1.5 text-[9px] uppercase tracking-widest text-accent-foreground">
-                Pixel forest lab
+                <span className="text-accent">Pixel forest lab</span>
               </span>
               <h1 className="mt-5 text-2xl leading-relaxed text-foreground text-glow sm:text-4xl lg:text-5xl">
                 Silk Cocoon <span className="text-accent">AI</span>
