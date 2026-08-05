@@ -12,6 +12,7 @@ import { Navbar } from "@/components/Navbar";
 import { ResultView, type AnalysisResult } from "@/components/ResultView";
 import { AboutSection, DocumentationSection, Section, TechnologySection } from "@/components/Sections";
 import { UploadArea } from "@/components/UploadArea";
+import { analyzeCocoonTrayImage } from "@/lib/api";
 
 const title = "Silk Cocoon AI — AI Powered Cocoon Segmentation & Analysis";
 const description =
@@ -36,6 +37,7 @@ type Stage = "idle" | "loading" | "result";
 function Index() {
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const objectUrl = useRef<string | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -45,32 +47,47 @@ function Index() {
     };
   }, []);
 
-  const handleFile = useCallback((file: File | null) => {
+  const handleFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+
     if (objectUrl.current) {
       URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = null;
     }
-    if (file && file.type.startsWith("image/")) {
+
+    if (file.type.startsWith("image/")) {
       objectUrl.current = URL.createObjectURL(file);
     }
-    setResult({
-      cocoons: 42 + Math.floor(Math.random() * 37),
-      confidence: 93 + Math.random() * 6,
-      processingMs: 640 + Math.random() * 520,
-      originalUrl: objectUrl.current,
-    });
-    setStage("loading");
-  }, []);
 
-  const finishLoading = useCallback(() => {
-    setStage("result");
-    window.setTimeout(() => {
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 120);
+    setErrorMsg(null);
+    setStage("loading");
+
+    try {
+      const response = await analyzeCocoonTrayImage(file);
+
+      setResult({
+        cocoons: response.count,
+        confidence: response.average_confidence,
+        processingMs: response.processing_ms,
+        originalUrl: objectUrl.current,
+        segmentedUrl: response.segmented_image,
+      });
+
+      setStage("result");
+      window.setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+    } catch (err: unknown) {
+      console.error("Analysis failed:", err);
+      const message = err instanceof Error ? err.message : "Failed to connect to backend.";
+      setErrorMsg(message);
+      setStage("idle");
+    }
   }, []);
 
   const reset = useCallback(() => {
     setStage("idle");
+    setErrorMsg(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
@@ -79,11 +96,35 @@ function Index() {
       <ForestBackground />
       <Navbar />
 
-      <AnimatePresence>{stage === "loading" && <LoadingScreen onDone={finishLoading} />}</AnimatePresence>
+      <AnimatePresence>
+        {stage === "loading" && <LoadingScreen onDone={() => {}} />}
+      </AnimatePresence>
 
       <main>
         {/* HERO */}
         <section id="home" className="mx-auto max-w-6xl px-5 pb-10 pt-32 sm:px-8 sm:pt-40">
+          {errorMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 rounded-2xl border border-destructive/50 bg-destructive/10 p-5 backdrop-blur-md"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="pixel text-xs font-semibold text-destructive">Backend Connection Error</h4>
+                  <p className="mt-1 text-sm text-foreground">{errorMsg}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg(null)}
+                  className="pixel text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  [Dismiss]
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
             <motion.div
               initial={{ opacity: 0, y: 28 }}

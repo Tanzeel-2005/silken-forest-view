@@ -10,6 +10,7 @@ export type AnalysisResult = {
   confidence: number;
   processingMs: number;
   originalUrl: string | null;
+  segmentedUrl: string;
 };
 
 function useCountUp(target: number, decimals = 0) {
@@ -118,6 +119,8 @@ export function ResultView({
   result: AnalysisResult;
   onReset: () => void;
 }) {
+  const segmentedSrc = result.segmentedUrl || sampleSegmented;
+
   return (
     <div className="mx-auto max-w-6xl">
       <div className="grid gap-5 lg:grid-cols-2">
@@ -129,7 +132,7 @@ export function ResultView({
         />
         <ImagePanel
           title="Segmented Image"
-          src={sampleSegmented}
+          src={segmentedSrc}
           alt="Segmentation masks drawn over each detected silk cocoon"
           delay={0.12}
         />
@@ -167,7 +170,7 @@ export function ResultView({
           Analyze Another Image
         </motion.button>
         <motion.a
-          href={sampleSegmented}
+          href={segmentedSrc}
           download="silk-cocoon-ai-result.jpg"
           whileHover={{ y: -2 }}
           whileTap={{ y: 1 }}

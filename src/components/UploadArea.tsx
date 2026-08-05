@@ -78,7 +78,7 @@ export function UploadArea({ onFile }: { onFile: (file: File | null) => void }) 
           Upload Image
         </motion.button>
         <p className="text-xs text-muted-foreground">
-          Demo mode — analysis runs on bundled placeholder data.
+          FastAPI + Roboflow Workflow — live AI segmentation pipeline.
         </p>
       </div>
     </div>
