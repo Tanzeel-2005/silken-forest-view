@@ -162,12 +162,13 @@ export function PixelEye(props: P) {
 
 export function PixelCount(props: P) {
   const cells: [number, number, string][] = [];
-  [
+  const spots: [number, number][] = [
     [3, 4],
     [8, 4],
     [3, 9],
     [8, 9],
-  ].forEach(([ox, oy]) => {
+  ];
+  spots.forEach(([ox, oy]) => {
     for (let x = 0; x < 4; x++)
       for (let y = 0; y < 3; y++)
         cells.push([ox + x, oy + y, (x + y) % 2 === 0 ? G : M]);
