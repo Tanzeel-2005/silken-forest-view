@@ -17,7 +17,7 @@ export interface BackendAnalyzeResponse {
   success: boolean;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || "https://silken-forest-api.onrender.com";
 
 /**
  * Sends an uploaded tray image file to the FastAPI backend POST /api/analyze endpoint.
@@ -51,7 +51,7 @@ export async function analyzeCocoonTrayImage(file: File): Promise<BackendAnalyze
     if (err instanceof Error) {
       if (err.name === "TypeError" || err.message.includes("Failed to fetch")) {
         throw new Error(
-          `Unable to connect to FastAPI backend at ${API_BASE_URL}. Please ensure python main.py is running.`
+          `Unable to connect to the backend at ${API_BASE_URL}.`
         );
       }
       throw err;
