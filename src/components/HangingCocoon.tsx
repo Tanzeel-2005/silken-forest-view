@@ -20,7 +20,7 @@ export function HangingCocoon({ thread = 56, size = 64, delay = 0, metamorphose 
       <motion.div
         className="origin-top"
         style={{ width: size, height: size }}
-        animate={reduce ? undefined : { rotate: [-3.5, 3.5, -3.5] }}
+        animate={reduce ? { rotate: 0 } : { rotate: [-3.5, 3.5, -3.5] }}
         transition={{ duration: 4.5, delay, repeat: Infinity, ease: "easeInOut" }}
         whileHover={{ rotate: [-11, 11, -7, 7, 0], transition: { duration: 1.4 } }}
       >
