@@ -56,3 +56,11 @@ temp/
 
 # Python cache
 **/__pycache__/
+
+# Backend generated uploads
+backend/uploads/
+backend/outputs/
+
+# Local test files
+backend/temp_crop.jpg
+backend/test_pipeline.py

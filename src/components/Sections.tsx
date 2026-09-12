@@ -71,12 +71,12 @@ export function AboutSection() {
 
 export function TechnologySection() {
   const rows = [
-    ["Model", "Mask R-CNN style instance segmentation head"],
-    ["Backbone", "ResNet-50 FPN, fine-tuned on farm imagery"],
-    ["Input", "Single RGB tray photo, resized to 1024px"],
-    ["Output", "Per-cocoon polygon masks, count, confidence"],
-    ["Latency", "~0.8s per frame on a mid-range GPU"],
-    ["Runtime", "Frontend demo — no backend in this build"],
+    ["Segmentation Model 1", "YOLOv11 Instance Segmentation (Roboflow Workflow)"],
+    ["Classification Model 2", "ResNet18 Quality Classifier (96.10% Accuracy, 95.07% Macro F1)"],
+    ["Classes Evaluated", "Normal, Fugongiya, Sunken, Surface Defect"],
+    ["Crop Processing", "Mask-isolated polygon polygon cropping per detected cocoon"],
+    ["Backend Runtime", "FastAPI Python server with InferenceHTTPClient"],
+    ["Grading Engine", "Configurable quality ratio rules & demo price estimation"],
   ];
 
   return (

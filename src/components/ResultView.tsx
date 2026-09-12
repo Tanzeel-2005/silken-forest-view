@@ -3,7 +3,10 @@ import { useEffect, useState } from "react";
 
 import sampleOriginal from "@/assets/sample-original.jpg";
 import sampleSegmented from "@/assets/sample-segmented.jpg";
+import type { GradeEstimate, QualityBreakdown } from "@/lib/api";
+import { GradePriceCard } from "./GradePriceCard";
 import { PixelBolt, PixelCount, PixelDownload, PixelEye, PixelUpload } from "./pixel/PixelIcons";
+import { QualityBreakdownCard } from "./QualityBreakdownCard";
 
 export type AnalysisResult = {
   cocoons: number;
@@ -11,6 +14,9 @@ export type AnalysisResult = {
   processingMs: number;
   originalUrl: string | null;
   segmentedUrl: string;
+  qualityBreakdown?: QualityBreakdown;
+  classificationSuccessRate?: number;
+  gradeEstimate?: GradeEstimate;
 };
 
 function useCountUp(target: number, decimals = 0) {
@@ -122,26 +128,31 @@ export function ResultView({
   const segmentedSrc = result.segmentedUrl || sampleSegmented;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-6xl space-y-6">
+      {/* Side-by-side original vs segmented view */}
       <div className="grid gap-5 lg:grid-cols-2">
         <ImagePanel
-          title="Original Image"
+          title="Original Tray Image"
           src={result.originalUrl ?? sampleOriginal}
           alt="Uploaded silk cocoon tray photograph"
           delay={0}
         />
         <ImagePanel
-          title="Segmented Image"
+          title="Quality Color-Coded Segmentation Overlay"
           src={segmentedSrc}
-          alt="Segmentation masks drawn over each detected silk cocoon"
+          alt="Color-coded quality segmentation masks drawn over each detected silk cocoon"
           delay={0.12}
         />
       </div>
 
-      <div className="mt-6 grid gap-5 sm:grid-cols-3">
-        <StatCard label="Total Cocoons Detected" value={result.cocoons} Icon={PixelCount} delay={0.2} />
+      {/* Grade and Demo Price Card */}
+      {result.gradeEstimate && <GradePriceCard estimate={result.gradeEstimate} />}
+
+      {/* Primary Overview Stat Cards */}
+      <div className="grid gap-5 sm:grid-cols-3">
+        <StatCard label="Total Cocoons (YOLOv11)" value={result.cocoons} Icon={PixelCount} delay={0.2} />
         <StatCard
-          label="Confidence Score"
+          label="Avg Detection Confidence"
           value={result.confidence}
           suffix="%"
           decimals={1}
@@ -149,7 +160,7 @@ export function ResultView({
           delay={0.3}
         />
         <StatCard
-          label="Processing Time"
+          label="Total Processing Time"
           value={result.processingMs / 1000}
           suffix="s"
           decimals={2}
@@ -158,7 +169,17 @@ export function ResultView({
         />
       </div>
 
-      <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+      {/* ResNet18 Quality Class Distribution */}
+      {result.qualityBreakdown && (
+        <QualityBreakdownCard
+          breakdown={result.qualityBreakdown}
+          totalCount={result.cocoons}
+          successRate={result.classificationSuccessRate}
+        />
+      )}
+
+      {/* Action Buttons */}
+      <div className="pt-2 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <motion.button
           type="button"
           onClick={onReset}
