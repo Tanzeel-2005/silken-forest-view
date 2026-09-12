@@ -56,3 +56,12 @@ temp/
 
 # Python cache
 **/__pycache__/
+
+# Backend
+.env
+uploads/
+outputs/
+temp_classify_*.jpg
+__pycache__/
+*.pyc
+plan.txt

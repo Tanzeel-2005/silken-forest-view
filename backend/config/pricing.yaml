@@ -1,0 +1,35 @@
+# ============================================================
+# Silk Cocoon Pricing Configuration
+# ============================================================
+# Source: Ramanagara Government Silk Cocoon Market (Karnataka)
+# and Central Silk Board monthly averages (Sept 2026).
+#
+# These are MARKET RATES PER KILOGRAM (₹/kg).
+# Update these values as market prices change.
+# ============================================================
+
+# --- Physical assumptions ---
+# Average weight of a single cocoon in grams.
+# Industry standard: ~1.5–2.0 g per cocoon.
+average_cocoon_weight_grams: 1.8
+
+# --- Market rates (₹ per kg) ---
+# Higher grade = higher rate.
+# NOTE: Class names come from Roboflow and may use underscores.
+# The PricingService normalizes both "surface_defect" and "surface defect".
+market_rates_per_kg:
+  normal: 850           # Bi-Voltine premium quality
+  sunken: 500           # Reduced quality
+  surface defect: 350   # Visible defect
+  fugongiya: 200        # Severely defective (jaali)
+
+# Fallback rate if a grade is not recognized
+default_rate_per_kg: 300
+
+# --- Batch grade thresholds ---
+# Based on the PERCENTAGE of "normal" cocoons in the batch.
+batch_grade_thresholds:
+  A: 0.80    # 80% or more normal → A
+  B: 0.60    # 60–79% normal → B
+  C: 0.40    # 40–59% normal → C
+  # Below 40% → D

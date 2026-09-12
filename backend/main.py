@@ -5,11 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from routers.analyze import router as analyze_router
+from routers.classify import router as classify_router  # <-- NEW: Import classify router
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Silk Cocoon AI — Backend API",
-    description="FastAPI backend powered by Roboflow Hosted Segmentation model for AI cocoon counting and analysis.",
+    description="FastAPI backend powered by Roboflow Hosted models for AI cocoon counting, grading, and analysis.",
     version="1.0.0",
 )
 
@@ -37,6 +38,7 @@ app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 
 # Register routers
 app.include_router(analyze_router)
+app.include_router(classify_router)  # <-- NEW: Register classify router
 
 
 @app.get("/", tags=["Health"])
@@ -45,7 +47,10 @@ async def root():
         "status": "online",
         "service": "Silk Cocoon AI — FastAPI Backend",
         "version": "1.0.0",
-        "endpoint": "POST /api/analyze",
+        "endpoints": [
+            "POST /api/analyze (Full pipeline: Segmentation + Grading)",
+            "POST /api/classify (Standalone: Grading only)"
+        ],
     }
 
 

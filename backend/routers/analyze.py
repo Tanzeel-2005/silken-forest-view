@@ -10,17 +10,21 @@ from services.roboflow_service import RoboflowService
 router = APIRouter(prefix="/api", tags=["Analysis"])
 
 
-class DetectionItem(BaseModel):
-    class_name: str = Field(alias="class", default="cocoon")
-    confidence: float
-    x: float
-    y: float
-    width: float
-    height: float
-    points: List[Dict[str, float]] = []
+# --- Pydantic Models for Request/Response Validation ---
 
-    class Config:
-        populate_by_name = True
+class FeatureModel(BaseModel):
+    area: int
+    length: int
+    width: int
+    aspect_ratio: float
+
+
+class CocoonItem(BaseModel):
+    id: int
+    grade: str
+    confidence: float
+    features: FeatureModel
+    estimated_price: float
 
 
 class AnalyzeResponse(BaseModel):
@@ -28,16 +32,22 @@ class AnalyzeResponse(BaseModel):
     average_confidence: float
     processing_ms: float
     detections: List[Dict[str, Any]]
+    cocoons: List[CocoonItem]
+    grade_counts: Dict[str, int]
+    batch_grade: str                      # ← NEW
+    total_estimated_price: float
     segmented_image: str
     success: bool = True
 
+
+# --- API Route ---
 
 @router.post(
     "/analyze",
     response_model=AnalyzeResponse,
     status_code=status.HTTP_200_OK,
-    summary="Analyze tray image for silk cocoon segmentation",
-    description="Receives tray image, runs Roboflow Workflow via InferenceSDK, and returns count, confidence, detections, and segmented image.",
+    summary="Analyze tray image for silk cocoon segmentation, grading, and pricing",
+    description="Receives tray image, runs Roboflow Workflow via InferenceSDK, extracts features, estimates prices, and returns count, grades, and segmented image.",
 )
 async def analyze_cocoon_tray(
     image: UploadFile = File(..., description="Uploaded silk cocoon tray image file (JPG, PNG)")
@@ -71,7 +81,7 @@ async def analyze_cocoon_tray(
         f.write(contents)
 
     try:
-        # Run inference via Roboflow Service using InferenceSDK Workflow
+        # Run inference via Roboflow Service
         result = await RoboflowService.analyze_image(
             image_bytes=contents,
             filename=image.filename or "tray.jpg",
@@ -79,11 +89,16 @@ async def analyze_cocoon_tray(
             image_path=upload_path,
         )
 
+        # Map the comprehensive result to our Pydantic response model
         return AnalyzeResponse(
             count=result["count"],
             average_confidence=result["average_confidence"],
             processing_ms=result["processing_ms"],
             detections=result["detections"],
+            cocoons=result["cocoons"],
+            grade_counts=result["grade_counts"],
+            batch_grade=result["batch_grade"],           # ← NEW
+            total_estimated_price=result["total_estimated_price"],
             segmented_image=result["segmented_image"],
             success=result["success"],
         )
