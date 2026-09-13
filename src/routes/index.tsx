@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
-import { ArrowDownRight, ArrowUpRight, FileImage, X } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "motion/react";
+import { ArrowDownRight, ArrowUpRight, FileImage, ScanLine, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   classifySegmentedCocoons,
@@ -36,6 +43,14 @@ const workflow = [
   ["06", "VALUE", "A configurable demonstration estimate appears."],
 ];
 
+const pipelineSteps = [
+  ["01", "Instance segmentation"],
+  ["02", "Mask isolation"],
+  ["03", "Quality classification"],
+  ["04", "Grade"],
+  ["05", "Value"],
+] as const;
+
 function Count({ value }: { value: number }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(reduce ? value : 0);
@@ -57,11 +72,21 @@ function Count({ value }: { value: number }) {
   return <>{shown.toString().padStart(2, "0")}</>;
 }
 
-function FileDrop({ onFile }: { onFile: (file: File) => void }) {
+function FileDrop({
+  onFile,
+  onInvalidFile,
+}: {
+  onFile: (file: File) => void;
+  onInvalidFile: () => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const receive = (file?: File) => {
-    if (file?.type.startsWith("image/")) onFile(file);
+    if (file?.type.startsWith("image/")) {
+      onFile(file);
+    } else if (file) {
+      onInvalidFile();
+    }
   };
   return (
     <div
@@ -95,16 +120,19 @@ function FileDrop({ onFile }: { onFile: (file: File) => void }) {
 }
 
 function StageRail({ stage }: { stage: Stage }) {
-  const passed = stage === "counted" || stage === "grading" || stage === "complete";
+  const countComplete = stage === "counted" || stage === "grading" || stage === "complete";
+  const qualityActive = stage === "grading" || stage === "complete";
   return (
     <div className="stage-rail" aria-label="Analysis stages">
-      <div className="rail-step active">
+      <div className={`rail-step active ${countComplete ? "complete" : ""}`}>
         <span>01</span>
         <b>Count</b>
         <small>YOLOv11 segmentation</small>
       </div>
-      <i className={passed ? "filled" : ""} />
-      <div className={passed ? "rail-step active" : "rail-step"}>
+      <i className={countComplete ? "filled" : ""} />
+      <div
+        className={`rail-step ${qualityActive ? "active" : ""} ${stage === "complete" ? "complete" : ""}`}
+      >
         <span>02</span>
         <b>Quality</b>
         <small>ResNet18 classification</small>
@@ -113,15 +141,137 @@ function StageRail({ stage }: { stage: Stage }) {
   );
 }
 
+function PipelineStatus({ stage, count }: { stage: Stage; count?: number }) {
+  const statusFor = (index: number) => {
+    if (stage === "ready") return "WAITING";
+    if (stage === "counting") return index === 0 ? "PROCESSING" : "WAITING";
+    if (stage === "counted") {
+      if (index < 2) return "COMPLETE";
+      return count === 0 && index === 2 ? "NOT RUN" : "WAITING";
+    }
+    if (stage === "grading") {
+      if (index < 2) return "COMPLETE";
+      return index === 2 ? "PROCESSING" : "WAITING";
+    }
+    return "COMPLETE";
+  };
+
+  return (
+    <ol className="pipeline-status" aria-label="Vision pipeline status">
+      {pipelineSteps.map(([number, label], index) => {
+        const status = statusFor(index);
+        return (
+          <li key={number} data-status={status.toLowerCase().replace(" ", "-")}>
+            <span>{number}</span>
+            <b>{label}</b>
+            <em>{status}</em>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function SpecimenInspector({
+  detections,
+  complete,
+  selectedIndex,
+  onSelect,
+}: {
+  detections: SegmentResponse["detections"];
+  complete: boolean;
+  selectedIndex: number | null;
+  onSelect: (index: number) => void;
+}) {
+  const specimen = selectedIndex === null ? null : detections[selectedIndex];
+  if (detections.length === 0) return null;
+  const quality =
+    specimen?.quality_class && specimen.quality_class !== "unclassified"
+      ? labels[specimen.quality_class]
+      : "AWAITING QUALITY";
+  return (
+    <section className="specimen-inspector" aria-labelledby="specimen-heading">
+      <div className="specimen-inspector-head">
+        <div>
+          <p className="eyebrow">Returned instances</p>
+          <h3 id="specimen-heading">SPECIMEN INSPECTION</h3>
+        </div>
+        <span>{detections.length} YOLO INSTANCES</span>
+      </div>
+      <div className="specimen-layout">
+        <div className="specimen-picker" role="list" aria-label="Detected cocoon specimens">
+          {detections.map((detection, index) => (
+            <button
+              type="button"
+              role="listitem"
+              key={`${detection.x}-${detection.y}-${index}`}
+              className={selectedIndex === index ? "selected" : ""}
+              onClick={() => onSelect(index)}
+              aria-pressed={selectedIndex === index}
+              disabled={!complete}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </button>
+          ))}
+        </div>
+        <div className="specimen-readout">
+          <ScanLine size={19} aria-hidden="true" />
+          <div>
+            <span>{selectedIndex === null ? "POST-ANALYSIS INSPECTION" : `SPECIMEN ${String(selectedIndex + 1).padStart(2, "0")}`}</span>
+            <strong>{selectedIndex === null ? (complete ? "SELECT A SPECIMEN" : "AWAITING QUALITY") : quality}</strong>
+          </div>
+          {specimen && (
+            <dl>
+              <div>
+                <dt>INSTANCE CONFIDENCE</dt>
+                <dd>{(specimen.confidence * 100).toFixed(1)}%</dd>
+              </div>
+              <div>
+                <dt>MASK GEOMETRY</dt>
+                <dd>
+                  {specimen.points.length ? `${specimen.points.length} vertices` : "Bounding region"}
+                </dd>
+              </div>
+              {specimen.quality_class !== "unclassified" && specimen.quality_confidence != null && (
+                <div>
+                  <dt>QUALITY CONFIDENCE</dt>
+                  <dd>{(specimen.quality_confidence * 100).toFixed(1)}%</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {!complete && (
+            <small>
+              Selection becomes available after quality classification and tray grading are complete.
+            </small>
+          )}
+          {complete && selectedIndex === null && <small>Select a numbered specimen to inspect its returned YOLO instance.</small>}
+          {complete && specimen?.quality_class === "unclassified" && (
+            <small>
+              This specimen remains part of the authoritative count but was not classified.
+            </small>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ScrollStory() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const [movement, setMovement] = useState(0);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const travel = useTransform(scrollYProgress, [0.08, 0.86], ["0%", "100%"]);
-  const visualY = useTransform(scrollYProgress, [0, 0.5, 1], [120, 0, -160]);
-  const visualScale = useTransform(scrollYProgress, [0, 0.48, 1], [0.78, 1.12, 0.7]);
-  const visualRotate = useTransform(scrollYProgress, [0, 1], [-14, 18]);
-  const threadWidth = useTransform(scrollYProgress, [0.05, 0.9], ["0%", "100%"]);
+  // Six physical movements occupy the first 86% of the scroll track; the final 14% holds VALUE.
+  const travel = useTransform(scrollYProgress, [0.05, 0.86], ["0%", "100%"]);
+  const visualY = useTransform(scrollYProgress, [0, 0.5, 0.86, 1], [120, 0, -160, -160]);
+  const visualScale = useTransform(scrollYProgress, [0, 0.48, 0.86, 1], [0.78, 1.12, 0.7, 0.7]);
+  const visualRotate = useTransform(scrollYProgress, [0, 0.86, 1], [-14, 18, 18]);
+  const threadWidth = useTransform(scrollYProgress, [0.05, 0.86], ["0%", "100%"]);
+  useMotionValueEvent(scrollYProgress, "change", (progress) => {
+    const next = Math.min(5, Math.floor(Math.max(0, progress - 0.02) / 0.14));
+    setMovement((current) => (current === next ? current : next));
+  });
   return (
     <>
       <section className="workflow-intro workflow-choreography" ref={ref} id="workflow">
@@ -132,12 +282,30 @@ function ScrollStory() {
             <br />
             SIX <em>READINGS.</em>
           </h2>
-          <p>Follow the object through a deliberate visual system. Count settles first; quality is an explicit second move.</p>
+          <p>
+            Follow the object through a deliberate visual system. Count settles first; quality is an
+            explicit second move.
+          </p>
         </div>
         <div className="workflow-visual" aria-hidden="true">
-          <motion.i className="workflow-thread" style={reduce ? undefined : { width: threadWidth }} />
-          <motion.div className="workflow-orbit" style={reduce ? undefined : { y: visualY, scale: visualScale, rotate: visualRotate }}>
-            <span /><span /><span /><b>01<br /><small>FIELD / TRACE</small></b>
+          <motion.i
+            className="workflow-thread"
+            style={reduce ? undefined : { width: threadWidth }}
+          />
+          <motion.div
+            className="workflow-orbit"
+            style={reduce ? undefined : { y: visualY, scale: visualScale, rotate: visualRotate }}
+          >
+            <span />
+            <span />
+            <span />
+            <b>
+              {workflow[movement][0]}
+              <br />
+              <small>
+                {movement === 5 ? "VALUE / FINAL HOLD" : `${workflow[movement][1]} / TRACE`}
+              </small>
+            </b>
           </motion.div>
           <motion.span className="workflow-traveler" style={reduce ? undefined : { top: travel }} />
         </div>
@@ -153,7 +321,14 @@ function ScrollStory() {
             >
               <span>{number}</span>
               <h3>{title}</h3>
-              <p>{copy}</p><small>{index === 1 ? "YOLOv11 / INSTANCE SEGMENTATION" : index === 3 ? "RESNET18 / ON EXPLICIT REQUEST" : "COCOON VISION / INSTRUMENT LOG"}</small>
+              <p>{copy}</p>
+              <small>
+                {index === 1
+                  ? "YOLOv11 / INSTANCE SEGMENTATION"
+                  : index === 3
+                    ? "RESNET18 / ON EXPLICIT REQUEST"
+                    : "COCOON VISION / INSTRUMENT LOG"}
+              </small>
               <i />
             </motion.article>
           ))}
@@ -270,7 +445,13 @@ function ProcessingFrame({
   const [message, setMessage] = useState(0);
   const words =
     kind === "count"
-      ? ["MAPPING TRAY", "VISION PASS", "DETECTING INSTANCES", "SEPARATING OBJECTS", "COUNT COMPLETE"]
+      ? [
+          "MAPPING TRAY",
+          "VISION PASS",
+          "DETECTING INSTANCES",
+          "SEPARATING OBJECTS",
+          "COUNT COMPLETE",
+        ]
       : [
           "PREPARING MASK-ISOLATED CROPS",
           "RUNNING QUALITY CLASSIFICATION",
@@ -333,12 +514,134 @@ function ProcessingFrame({
   );
 }
 
+function DetectionOverlay({
+  detections,
+  selectedIndex,
+  width,
+  height,
+  enabled,
+  onSelect,
+}: {
+  detections: SegmentResponse["detections"];
+  selectedIndex: number | null;
+  width: number;
+  height: number;
+  enabled: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const selected = selectedIndex === null ? null : detections[selectedIndex];
+  if (!enabled || !width || !height) return null;
+  const shapeFor = (detection: SegmentResponse["detections"][number]) => {
+    if (detection.points.length >= 3) {
+      return `M ${detection.points.map((point) => `${point.x} ${point.y}`).join(" L ")} Z`;
+    }
+    const rx = Math.max(1, detection.width / 2);
+    const ry = Math.max(1, detection.height / 2);
+    return `M ${detection.x - rx} ${detection.y} a ${rx} ${ry} 0 1 0 ${rx * 2} 0 a ${rx} ${ry} 0 1 0 ${-rx * 2} 0`;
+  };
+  const selectedPath = selected ? shapeFor(selected) : null;
+  const points = selected?.points ?? [];
+  const bounds = points.length
+    ? {
+        left: Math.min(...points.map((point) => point.x)),
+        right: Math.max(...points.map((point) => point.x)),
+        top: Math.min(...points.map((point) => point.y)),
+        bottom: Math.max(...points.map((point) => point.y)),
+      }
+    : selected
+      ? {
+        left: selected.x - selected.width / 2,
+        right: selected.x + selected.width / 2,
+        top: selected.y - selected.height / 2,
+        bottom: selected.y + selected.height / 2,
+        }
+      : null;
+  if (!bounds) {
+    return (
+      <svg className="detection-overlay" viewBox={`0 0 ${width} ${height}`} aria-label="Segmentation instances">
+        {detections.map((detection, index) => (
+          <path
+            className="detection-hit"
+            d={shapeFor(detection)}
+            key={`${detection.x}-${detection.y}-${index}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select specimen ${index + 1}`}
+            onClick={() => onSelect(index)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(index);
+              }
+            }}
+          />
+        ))}
+      </svg>
+    );
+  }
+  const inset = Math.max(
+    7,
+    Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top) * 0.14,
+  );
+  const reticle = `M ${bounds.left - inset} ${bounds.top + inset} V ${bounds.top - inset} H ${bounds.left + inset}
+    M ${bounds.right - inset} ${bounds.top - inset} H ${bounds.right + inset} V ${bounds.top + inset}
+    M ${bounds.left - inset} ${bounds.bottom - inset} V ${bounds.bottom + inset} H ${bounds.left + inset}
+    M ${bounds.right - inset} ${bounds.bottom + inset} V ${bounds.bottom - inset} H ${bounds.right + inset}`;
+  const label = String(selectedIndex + 1).padStart(2, "0");
+
+  return (
+    <svg
+      className="detection-overlay"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-label={`Selected specimen ${label} in the segmentation image`}
+    >
+      {detections.map((detection, index) => {
+        const path = shapeFor(detection);
+        const isSelected = index === selectedIndex;
+        return (
+          <g key={`${detection.x}-${detection.y}-${index}`}>
+            {isSelected && <path className="detection-selected" d={path} />}
+            <path
+              className="detection-hit"
+              d={path}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select specimen ${index + 1}`}
+              onClick={() => onSelect(index)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(index);
+                }
+              }}
+            />
+          </g>
+        );
+      })}
+      {selected && <path className="detection-reticle" d={reticle} />}
+      {selected && (
+        <g
+          className="detection-label"
+          transform={`translate(${bounds.left - inset}, ${bounds.top - inset - 22})`}
+        >
+          <rect width="31" height="17" rx="1" />
+          <text x="15.5" y="12">
+            {label}
+          </text>
+        </g>
+      )}
+    </svg>
+  );
+}
+
 function Index() {
   const [stage, setStage] = useState<Stage>("ready");
   const [segment, setSegment] = useState<SegmentResponse | null>(null);
   const [graded, setGraded] = useState<BackendAnalyzeResponse | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedInstanceIndex, setSelectedInstanceIndex] = useState<number | null>(null);
+  const [trayDimensions, setTrayDimensions] = useState({ width: 0, height: 0 });
   const objectUrl = useRef<string | null>(null);
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 650], [0, 110]);
@@ -357,6 +660,8 @@ function Index() {
     setOriginal(objectUrl.current);
     setError(null);
     setGraded(null);
+    setSelectedInstanceIndex(null);
+    setTrayDimensions({ width: 0, height: 0 });
     setStage("counting");
     try {
       setSegment(await segmentCocoonTrayImage(file));
@@ -369,9 +674,11 @@ function Index() {
   const grade = useCallback(async () => {
     if (!segment) return;
     setError(null);
+    setSelectedInstanceIndex(null);
     setStage("grading");
     try {
       setGraded(await classifySegmentedCocoons(segment.analysis_id));
+      setSelectedInstanceIndex(null);
       setStage("complete");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Quality analysis could not be completed.");
@@ -383,9 +690,21 @@ function Index() {
     setSegment(null);
     setGraded(null);
     setError(null);
+    setSelectedInstanceIndex(null);
+    setTrayDimensions({ width: 0, height: 0 });
     document.querySelector("#analyze")?.scrollIntoView({ behavior: "smooth" });
   };
   const display = graded ?? segment;
+  const systemStatus =
+    stage === "counting"
+      ? "COUNTING TRAY"
+      : stage === "grading"
+        ? "READING QUALITY"
+        : stage === "complete"
+          ? "REPORT READY"
+          : stage === "counted"
+            ? "COUNT COMPLETE"
+            : "SYSTEM READY";
   return (
     <div className="lab-shell">
       <div className="fiber-field" />
@@ -399,11 +718,15 @@ function Index() {
           </span>
         </a>
         <div className="nav-links">
+          <a href="#workflow">Explore</a>
           <a href="#analyze">Analyze</a>
-          <a href="#workflow">Workflow</a>
-          <a href="#method">Method</a>
+          <a href="#method">Methodology</a>
         </div>
-        <span className="live-dot">SYSTEM READY</span>
+        <span
+          className={`live-dot ${stage === "counting" || stage === "grading" ? "is-processing" : ""}`}
+        >
+          {systemStatus}
+        </span>
       </nav>
       <main id="top">
         <section className="hero">
@@ -416,13 +739,13 @@ function Index() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7 }}
             >
-              SEE THE
+              SEE WHAT THE
               <br />
-              <em>WHOLE</em> THREAD.
+              <em>EYE</em> MISSES.
             </motion.h1>
             <p className="lede">
-              A two-stage visual instrument for counting cocoons with precision, then reading their
-              quality—only when you ask it to.
+              Cocoon Vision is a two-stage visual instrument: it finds each specimen first, then
+              reads its quality only when you ask it to.
             </p>
             <a className="hero-link" href="#analyze">
               Begin an analysis <ArrowDownRight size={19} />
@@ -444,10 +767,10 @@ function Index() {
             </b>
           </motion.div>
           <motion.span className="hero-metadata hero-metadata-a" style={{ x: heroLabelX }}>
-            24.61° N / VISION FIELD
+            INSTANCE / YOLOv11
           </motion.span>
           <motion.span className="hero-metadata hero-metadata-b" style={{ x: heroLabelX }}>
-            01—02 / DELIBERATE MOVES
+            QUALITY → GRADE → VALUE
           </motion.span>
           <motion.i className="hero-thread" style={{ scaleX: heroOrbitScale }} />
         </section>
@@ -464,6 +787,7 @@ function Index() {
             </div>
             <StageRail stage={stage} />
           </div>
+          <PipelineStatus stage={stage} count={segment?.count} />
           {error && (
             <div className="error">
               <X size={17} />
@@ -489,7 +813,12 @@ function Index() {
                   <div className="rule" />
                   <small>QUALITY MODEL IS NOT CALLED AT THIS STAGE</small>
                 </div>
-                <FileDrop onFile={count} />
+                <FileDrop
+                  onFile={count}
+                  onInvalidFile={() =>
+                    setError("Choose a JPG, PNG, or WebP photograph to begin the analysis.")
+                  }
+                />
               </motion.div>
             )}
             {stage === "counting" && <ProcessingFrame image={original} kind="count" />}
@@ -504,6 +833,19 @@ function Index() {
                   <img
                     src={stage === "complete" ? graded?.segmented_image : segment?.segmented_image}
                     alt="YOLO segmentation overlay of the uploaded tray"
+                    onLoad={(event) =>
+                      setTrayDimensions({
+                        width: event.currentTarget.naturalWidth,
+                        height: event.currentTarget.naturalHeight,
+                      })
+                    }
+                  />
+                  <DetectionOverlay
+                    detections={display.detections}
+                    selectedIndex={selectedInstanceIndex}
+                    width={trayDimensions.width}
+                    height={trayDimensions.height}
+                    onSelect={setSelectedInstanceIndex}
                   />
                   <div className="reticle r1" />
                   <div className="reticle r2" />
@@ -529,14 +871,30 @@ function Index() {
                   </p>
                   {stage === "counted" && (
                     <div className="next-stage">
-                      <span>Count complete / Stage 02 is optional</span>
-                      <p>
-                        {display.count} detected instances are ready for quality analysis. ResNet18
-                        receives these exact YOLO-generated, mask-isolated crops; the count will not change.
-                      </p>
-                      <button className="primary-action" onClick={grade}>
-                        Run quality analysis <ArrowUpRight size={17} />
-                      </button>
+                      {display.count > 0 ? (
+                        <>
+                          <span>Count complete / Stage 02 is optional</span>
+                          <p>
+                            {display.count} detected instances are ready for quality analysis.
+                            ResNet18 receives these exact YOLO-generated, mask-isolated crops; the
+                            count will not change.
+                          </p>
+                          <button className="primary-action" onClick={grade}>
+                            Run quality analysis <ArrowUpRight size={17} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span>No instances returned</span>
+                          <p>
+                            YOLOv11 did not find a cocoon instance in this tray. Try a clearer,
+                            closer photograph with the tray fully in frame.
+                          </p>
+                          <button className="text-button" onClick={reset}>
+                            Choose another photograph <ArrowUpRight size={15} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                   {stage === "grading" && (
@@ -550,6 +908,12 @@ function Index() {
                     <QualityReport result={graded} onReset={reset} />
                   )}
                 </div>
+                <SpecimenInspector
+                  detections={display.detections}
+                  complete={stage === "complete"}
+                  selectedIndex={selectedInstanceIndex}
+                  onSelect={setSelectedInstanceIndex}
+                />
               </motion.div>
             )}
           </AnimatePresence>
